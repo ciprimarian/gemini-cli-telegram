@@ -1,0 +1,5 @@
+.env
+.gemini-telegram/
+venv/
+__pycache__/
+*.pyc
