@@ -1,0 +1,24 @@
+name: Bug report
+description: Something broke and you want it fixed without guessing games.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: Tell it straight. What did you do, what did you expect, what actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Host OS, Python version, Gemini CLI status, deployment style.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or errors
+      description: Paste the exact error if you have it.
