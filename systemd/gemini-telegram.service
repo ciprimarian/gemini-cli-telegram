@@ -1,0 +1,14 @@
+[Unit]
+Description=Gemini CLI Telegram bridge
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/gemini-cli-telegram
+EnvironmentFile=%h/gemini-cli-telegram/.env
+ExecStart=%h/gemini-cli-telegram/venv/bin/gemini-telegram run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
