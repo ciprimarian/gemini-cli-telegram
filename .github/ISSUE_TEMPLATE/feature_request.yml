@@ -1,0 +1,22 @@
+name: Feature request
+description: Ask for a feature without writing a novella.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that the bridge does not handle well today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: If you have a concrete idea, put it here.
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Tradeoffs
+      description: Any security, portability, or maintenance cost worth calling out?
