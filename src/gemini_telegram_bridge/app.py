@@ -88,7 +88,8 @@ class BridgeApp:
     async def ensure_access(self, update: Update) -> bool:
         user = update.effective_user
         chat = update.effective_chat
-        if user is None or chat is None:
+        msg = update.effective_message
+        if user is None or chat is None or msg is None:
             return False
         try:
             self.access.ensure_allowed(user.id)
@@ -316,32 +317,43 @@ class BridgeApp:
         if not await self.ensure_access(update):
             return
         document = update.effective_message.document
-        with tempfile.TemporaryDirectory(dir=self.config.data_dir) as temp_dir:
-            local_dir = Path(temp_dir)
-            local_path = local_dir / (document.file_name or "upload.bin")
-            telegram_file = await document.get_file()
-            await telegram_file.download_to_drive(custom_path=str(local_path))
-            ensure_upload_size(local_path, self.config)
+        _, project_path, _ = self.get_state(update.effective_chat.id)
 
-            note = f"User uploaded file: {local_path.name}"
-            extracted_note = ""
-            try:
-                extracted_dir = local_dir / "extracted"
-                extracted_dir.mkdir(exist_ok=True)
-                extracted_paths = extract_archive(local_path, extracted_dir, self.sandbox, self.config)
-                extracted_note = f"\nArchive extracted with {len(extracted_paths)} entries."
-            except ValueError:
-                extracted_note = ""
+        local_path = project_path / (document.file_name or "upload.bin")
+        telegram_file = await document.get_file()
+        await telegram_file.download_to_drive(custom_path=str(local_path))
+        ensure_upload_size(local_path, self.config)
 
-            await self.run_agent(update, context, f"{note}{extracted_note}")
+        note = f"The user has uploaded a file named '{local_path.name}' to the workspace. Please examine it and proceed with any analysis or tasks requested."
+        extracted_note = ""
+        try:
+            # We use a subfolder for extraction to keep project root clean
+            extracted_dir = project_path / f"extracted_{document.file_name}"
+            extracted_dir.mkdir(exist_ok=True)
+            extracted_paths = extract_archive(local_path, extracted_dir, self.sandbox, self.config)
+            extracted_note = f"\nAn archive was extracted into the directory '{extracted_dir.name}', containing {len(extracted_paths)} entries. You should look into this directory if you need to analyze the contents."
+        except ValueError:
+            # Not an archive or extraction failed, that's fine
+            pass
+
+        await self.run_agent(update, context, f"{note}{extracted_note}")
 
     async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await self.ensure_access(update):
             return
+        photo = update.effective_message.photo[-1]
+        _, project_path, _ = self.get_state(update.effective_chat.id)
+
+        local_path = project_path / f"photo_{photo.file_unique_id}.jpg"
+        telegram_file = await photo.get_file()
+        await telegram_file.download_to_drive(custom_path=str(local_path))
+        ensure_upload_size(local_path, self.config)
+
+        prompt = update.effective_message.caption or "Analyze this photo."
         await self.run_agent(
             update,
             context,
-            "The user uploaded a screenshot/photo. Ask them what they want analyzed and mention that image-aware prompts depend on local Gemini CLI capabilities.",
+            f"The user uploaded a photo saved as {local_path.name}. {prompt}",
         )
 
     async def handle_voice(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -361,6 +373,13 @@ class BridgeApp:
     async def run_agent(self, update: Update, context: ContextTypes.DEFAULT_TYPE, prompt: str) -> None:
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
+
+        if chat_id in self.active_runs:
+            await update.effective_message.reply_text(
+                "Another Gemini process is already running for this chat. Please wait or use /stop."
+            )
+            return
+
         if not self.rate_limiter.allow(user_id):
             await update.effective_message.reply_text(
                 f"Slow down a bit. Limit is {self.config.rate_limit_count} requests every "

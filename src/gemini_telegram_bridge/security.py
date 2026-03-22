@@ -49,7 +49,9 @@ class AccessController:
             return False
         if mode is SecurityMode.BALANCED:
             return True
-        return self.is_admin(user_id)
+        if mode is SecurityMode.POWER:
+            return True
+        return False
 
 
 @dataclass(slots=True)
